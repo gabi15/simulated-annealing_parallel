@@ -262,14 +262,20 @@ int main(int argc, char *argv[])
     //     MPI_COMM_WORLD
     // );
 
-    // MPI_Bcast(&best_solution, 1, MPI_FLOAT_INT, MASTER_PROCESS_ID, MPI_COMM_WORLD);
+    //lines only for testing without mpi_reduce, delete later
     best_solution.value = 5.55;
     best_solution.process_id = 2;
+    //lines only for testing without mpi_reduce, delete later
+
+    
     #pragma xmp bcast(best_solution)
 
-    #pragma xmp task on p[2] //cant compile when passinng variable here
+
+    int best_id = best_solution.process_id; //must assign here to avoid seg fault
+
+    #pragma xmp task on p[best_id] //cant compile when passinng variable here
     {
-        // fprintf(stderr, "\nbest found division for process: %d\n", best_solution.process_id);
+        fprintf(stderr, "\nbest found division for process: %d\n", best_solution.process_id);
         // fprintf(stderr, "least dislike : %.2f\n", best_solution.value);
         // fprintf(stderr, "\ndislike array: \n");
         // print_2d_array_stderr_color(d, a, N, N);
@@ -279,6 +285,7 @@ int main(int argc, char *argv[])
         // it should be uncommented but stderr is not compatible with stdout.
         // print_1d_array_int(a, N);
     }
+    
 
     return 0;
 }
