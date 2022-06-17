@@ -246,10 +246,12 @@ int main(int argc, char *argv[])
         fprintf(stderr, "\nCalculating best room division...\n");
         fflush(stderr);
     }
-    // MPI_Bcast(&(d[0][0]), N*N, MPI_FLOAT, MASTER_PROCESS_ID, MPI_COMM_WORLD);
 
-    // float solution = solve(d, a, T);
-    // current_solution.value = solution;
+    #pragma xmp bcast(d)
+    //fprintf(stderr, "Node number: %d\n", current_solution.process_id);
+
+    float solution = solve(d, a, T);
+    current_solution.value = solution;
     // MPI_Reduce(
     //     &current_solution,
     //     &best_solution,
@@ -261,21 +263,22 @@ int main(int argc, char *argv[])
     // );
 
     // MPI_Bcast(&best_solution, 1, MPI_FLOAT_INT, MASTER_PROCESS_ID, MPI_COMM_WORLD);
+    best_solution.value = 5.55;
+    best_solution.process_id = 2;
+    #pragma xmp bcast(best_solution)
 
-    // if (current_solution.process_id == best_solution.process_id)
-    // {
-    //     fprintf(stderr, "\nbest found division for process: %d\n", best_solution.process_id);
-    //     fprintf(stderr, "least dislike : %.2f\n", best_solution.value);
-    //     fprintf(stderr, "\ndislike array: \n");
-    //     print_2d_array_stderr_color(d, a, N, N);
-    //     fprintf(stderr, "solution:\n");
-    //     print_1d_array_int_stderr(a, N);
-    //     fflush(NULL);
-    //     // it should be uncommented but stderr is not compatible with stdout.
-    //     // print_1d_array_int(a, N);
-    // }
-    
-    // MPI_Finalize();
+    #pragma xmp task on p[2] //cant compile when passinng variable here
+    {
+        // fprintf(stderr, "\nbest found division for process: %d\n", best_solution.process_id);
+        // fprintf(stderr, "least dislike : %.2f\n", best_solution.value);
+        // fprintf(stderr, "\ndislike array: \n");
+        // print_2d_array_stderr_color(d, a, N, N);
+        // fprintf(stderr, "solution:\n");
+        // print_1d_array_int_stderr(a, N);
+        // fflush(NULL);
+        // it should be uncommented but stderr is not compatible with stdout.
+        // print_1d_array_int(a, N);
+    }
 
     return 0;
 }
