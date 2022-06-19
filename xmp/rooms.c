@@ -228,11 +228,6 @@ int main(int argc, char *argv[])
     current_solution.process_id = xmpc_node_num();
     srandom (current_solution.process_id);
 
-    #pragma xmp task on p[0]
-    {
-    fprintf(stderr, "Node number: %d\n", current_solution.process_id);
-    }
-
     float T = 1.0;
     float d[N][N]; //dislike table
     for(int i = 0; i < N; ++i)
