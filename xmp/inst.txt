@@ -1,0 +1,132 @@
+/**
+  *	 Laplace lattice update
+  *      - using XMP shadows
+  *	 modified by PG 2019, 2022
+  *
+  *** Setup:
+
+ $ source /opt/nfs/config/source_omni134_xmp.sh
+
+  *** Compile:
+
+ $ xmpcc xmp-4-laplace.c -o xmp-4-laplace -lm
+
+  *** Execute (on MPICH cluster with no. of nodes divisible by 4):
+
+ $ mpiexec -n 8 -f nodes ./xmp-4-laplace | egrep -v '(context|handle)'
+
+  *** Output:
+
+Verification: Parallel sum of u[][] =   5.5488557664881384
+Verification:   Serial sum of v[][] =   5.5488557664881109
+
+  *
+  **/
+#include <stdio.h>
+#include <stdlib.h>
+#include <math.h>
+#define N1 64
+#define N2 64
+
+// Parallel XMP code: distribute data and calculations
+
+// Distribute u, uu matrices among nodes' memories
+// (with additional margin buffers - shadows)
+#pragma xmp nodes p[*][4]
+#pragma xmp template t[N2][N1]
+#pragma xmp distribute t[block][block] onto p
+#pragma xmp align u[j][i] with t[j][i]
+#pragma xmp align uu[j][i] with t[j][i]
+#pragma xmp shadow uu[1:1][1:1]
+
+double u[N2][N1], uu[N2][N1];
+
+
+int main(int argc, char **argv)
+{
+  int i, j, k, niter = 100;
+  double value = 0.0;
+
+// Distribute loop iterations among nodes
+#pragma xmp loop (j,i) on t[j][i]
+  for(j = 0; j < N2; j++){
+    for(i = 0; i < N1; i++){
+      u[j][i] = 0.0;
+      uu[j][i] = 0.0;
+    }
+  }
+
+// Distribute loop iterations among nodes
+#pragma xmp loop (j,i) on t[j][i]
+  for(j = 1; j < N2-1; j++)                // initialize lattice
+    for(i = 1; i < N1-1; i++)
+      u[j][i] = sin((double)i/N1*M_PI) + cos((double)j/N2*M_PI);
+
+
+  for(k = 0; k < niter; k++){              // external loop over lattice
+
+// Distribute loop iterations among nodes
+#pragma xmp loop (j,i) on t[j][i]
+    for(j = 1; j < N2-1; j++)
+      for(i = 1; i < N1-1; i++)
+	uu[j][i] = u[j][i];
+
+// Exchange margin buffers between neighbouring nodes
+#pragma xmp reflect (uu)
+
+// Distribute loop iterations among nodes
+#pragma xmp loop (j,i) on t[j][i]
+    for(j = 1; j < N2-1; j++)	           // update lattice node
+      for(i = 1; i < N1-1; i++)
+	u[j][i] = (uu[j-1][i] + uu[j+1][i] + uu[j][i-1] + uu[j][i+1])/4.0;
+  }
+
+// Distribute loop iterations among nodes and reduce results
+#pragma xmp loop (j,i) on t[j][i] reduction(+:value)
+  for(j = 1; j < N2-1; j++)
+    for(i = 1; i < N1-1; i++)
+      value += fabs(uu[j][i] - u[j][i]);   // calculate test value
+
+// Execute code on node 0
+#pragma xmp task on p[0][0]
+ {
+  printf("Verification: Parallel sum of u[][] = %20.16f\n", value);
+
+  // Serial code: repeat all calculations on node 0
+
+  double v[N2][N1], vv[N2][N1];
+
+  int j, i, k, niter = 100;
+  double value = 0.0;
+
+  for(j = 0; j < N2; j++){
+    for(i = 0; i < N1; i++){
+      v[j][i] = 0.0;
+      vv[j][i] = 0.0;
+    }
+  }
+
+  for(j = 1; j < N2-1; j++)                // initialize lattice
+    for(i = 1; i < N1-1; i++)
+      v[j][i] = sin((double)i/N1*M_PI) + cos((double)j/N2*M_PI);
+
+  for(k = 0; k < niter; k++){              // external loop over lattice
+    for(j = 1; j < N2-1; j++)
+      for(i = 1; i < N1-1; i++)
+	vv[j][i] = v[j][i];
+
+    for(j = 1; j < N2-1; j++)              // update lattice node
+      for(i = 1; i < N1-1; i++)
+	v[j][i] = (vv[j-1][i] + vv[j+1][i] + vv[j][i-1] + vv[j][i+1])/4.0;
+  }
+
+  for(j = 1; j < N2-1; j++)
+    for(i = 1; i < N1-1; i++)
+      value += fabs(vv[j][i] - v[j][i]);  // calculate test value
+
+  printf("Verification:   Serial sum of v[][] = %20.16f\n", value);
+
+ } // end of serial code on node 0
+
+  return 0;
+}
