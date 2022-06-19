@@ -107,7 +107,7 @@ void print_2d_array_stderr_color(float d[N][N], int a[N], int length, int width)
             fprintf(stderr, "%.2f ", d[i][j]);
             reset();
           }
-          else 
+          else
             fprintf(stderr, "%.2f ", d[i][j]);
         }
         fprintf(stderr, "\n");
@@ -193,7 +193,6 @@ void read_a_array(int a[N], int width, char *filename)
 #pragma xmp nodes p[*]
 int main(int argc, char *argv[])
 {
-    // MPI Init config
 	int numprocs, myid;
     struct
     {
@@ -201,13 +200,9 @@ int main(int argc, char *argv[])
         int	   process_id;
     } current_solution, best_solution;
 
-	// MPI_Init(&argc, &argv);
-	// MPI_Comm_rank(MPI_COMM_WORLD, &current_solution.process_id);
-	// MPI_Comm_size(MPI_COMM_WORLD, &numprocs);
-    // end of MPI initalization
-    srandom (current_solution.process_id);
     current_solution.process_id = xmpc_node_num();
-    
+    srandom (current_solution.process_id);
+
     #pragma xmp task on p[0]
     {
     fprintf(stderr, "Node number: %d\n", current_solution.process_id);
@@ -252,40 +247,29 @@ int main(int argc, char *argv[])
 
     float solution = solve(d, a, T);
     current_solution.value = solution;
-    // MPI_Reduce(
-    //     &current_solution,
-    //     &best_solution,
-    //     1,
-    //     MPI_FLOAT_INT,
-    //     MPI_MINLOC,
-    //     MASTER_PROCESS_ID,
-    //     MPI_COMM_WORLD
-    // );
+    // fprintf(stderr, "\nbest found division: %.2f for process: %d\n", current_solution.value, current_solution.process_id);
 
-    //lines only for testing without mpi_reduce, delete later
-    best_solution.value = 5.55;
-    best_solution.process_id = 2;
-    //lines only for testing without mpi_reduce, delete later
-
-    
-    #pragma xmp bcast(best_solution)
-
-
-    int best_id = best_solution.process_id; //must assign here to avoid seg fault
-
-    #pragma xmp task on p[best_id] //cant compile when passinng variable here
+    #pragma xmp reduction(min:solution)
+    int best_id = -1;
+    best_solution.value = solution;
+    if (abs(best_solution.value - current_solution.value) < __FLT_EPSILON__)
+    {
+        best_id = current_solution.process_id;
+    }
+    best_solution.process_id = best_id;
+    if (current_solution.process_id == best_id)
     {
         fprintf(stderr, "\nbest found division for process: %d\n", best_solution.process_id);
-        // fprintf(stderr, "least dislike : %.2f\n", best_solution.value);
-        // fprintf(stderr, "\ndislike array: \n");
-        // print_2d_array_stderr_color(d, a, N, N);
-        // fprintf(stderr, "solution:\n");
-        // print_1d_array_int_stderr(a, N);
-        // fflush(NULL);
+        fprintf(stderr, "least dislike : %.2f\n", solution);
+        fprintf(stderr, "\ndislike array: \n");
+        print_2d_array_stderr_color(d, a, N, N);
+        fprintf(stderr, "solution:\n");
+        print_1d_array_int_stderr(a, N);
+        fflush(NULL);
         // it should be uncommented but stderr is not compatible with stdout.
         // print_1d_array_int(a, N);
     }
-    
+
 
     return 0;
 }
